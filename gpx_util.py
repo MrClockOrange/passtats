@@ -1,5 +1,6 @@
 from lxml import etree
 import math
+import plotly.graph_objects as go
 
 def compute_dist(lat1, lon1, lat2, lon2):
     earth_radius = 6371000
@@ -23,21 +24,32 @@ def parse_gpx(path):
     delta_dist = [0]
     delta_alt = [0]
     prev = ()
-    for elem in root.getroot()[1][2]:
-        lat = float(elem.get('lat'))
-        lon = float(elem.get('lon'))
-        alt = float(elem[0].text)
-        lats.append(lat)
-        longs.append(lon)
-        alts.append(alt)
-        if prev:
-            prevlat, prevlon = prev
-            delta = compute_dist(*prev, lat, lon)
-            dist += delta
-            delta_dist.append(delta)
-            delta_alt.append(alt - prevalt)
-            dists.append(dist)
-        prev = (lat, lon)
-        prevalt = alt
+    for elem_ in root.getroot()[1]:
+        print(elem_.tag)
+        if 'trkseg' in elem_.tag:
+            print('found')
+            for elem in elem_:
+                lat = float(elem.get('lat'))
+                lon = float(elem.get('lon'))
+                alt = float(elem[0].text)
+                lats.append(lat)
+                longs.append(lon)
+                alts.append(alt)
+                if prev:
+                    prevlat, prevlon = prev
+                    delta = compute_dist(*prev, lat, lon)
+                    dist += delta
+                    delta_dist.append(delta)
+                    delta_alt.append(alt - prevalt)
+                    dists.append(dist)
+                prev = (lat, lon)
+                prevalt = alt
 
     return dists, alts, delta_dist, delta_alt
+
+
+def create_trace_from_gpx(path):
+    dists, alts, _, _ = parse_gpx(path)
+    name = path.split('/')[-1]
+    return go.Scatter(x=dists, y=[a - alts[0] for a in alts], mode="lines", name=name[:-4])
+

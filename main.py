@@ -1,25 +1,15 @@
-from lxml import etree
 import pandas as pd
 import plotly
 import plotly.express as px
 import math
 import plotly.graph_objects as go
+import gpx_util as gu
 
 pd.set_option('display.max_rows', 500)
-path = '15.gpx'
-
-
-def compute_dist(lat1, lon1, lat2, lon2):
-    earth_radius = 6371000
-    phi1 = lat1 * math.pi / 180
-    phi2 = lat2 * math.pi / 180
-    delta_phi = (lat2 - lat1) * math.pi / 180
-    delta_lon = (lon2 - lon1) * math.pi / 180
-    a = math.sin(delta_phi / 2) * math.sin(delta_phi / 2) + math.cos(phi1) * math.cos(phi2) * math.sin(
-        delta_lon / 2) * math.sin(delta_lon / 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    d = earth_radius * c
-    return d
+path = 'gpx_files/15.gpx'
+path2 = '/Users/sylvainmougel/Downloads/2021-05-30_379583043_Bouchaux.gpx'
+path3 = 'gpx_files/huez.gpx'
+path4 = 'gpx_files/Zoncolan.gpx'
 
 
 def compute(raw_dists, raw_alts):
@@ -50,7 +40,7 @@ def detect_climb(alt_gain):
     ends = []
     was_start = False
     was_end=False
-    for i in range(len(alt_gain) - 20):
+    for i in range(len(alt_gain) - 10):
         if sum(alt_gain[i:i+20]) > 200 and alt_gain[i] > 0:
             if not was_start:
                 starts.append(i)
@@ -74,40 +64,18 @@ def detect_climb(alt_gain):
                     current = e
                     found = True
 
-    if starts[-1] > ends[-1]:
-        climbs.append((starts[-1], len(alt_gain) -1))
+    if ends:
+        if starts[-1] > ends[-1]:
+            climbs.append((starts[-1], len(alt_gain) -1))
 
     return starts, ends, climbs
 
 
 
+
 if __name__ == '__main__':
 
-    root = etree.parse(path)
-    lats = []
-    longs = []
-    alts = []
-    dists = [0]
-    dist = 0
-    delta_dist = [0]
-    delta_alt = [0]
-    prev = ()
-    for elem in root.getroot()[1][2]:
-        lat = float(elem.get('lat'))
-        lon = float(elem.get('lon'))
-        alt = int(elem[0].text)
-        lats.append(lat)
-        longs.append(lon)
-        alts.append(alt)
-        if prev:
-            prevlat, prevlon = prev
-            delta = compute_dist(*prev, lat, lon)
-            dist += delta
-            delta_dist.append(delta)
-            delta_alt.append(alt - prevalt)
-            dists.append(dist)
-        prev = (lat, lon)
-        prevalt = alt
+    dists, alts, delta_dist, delta_alt = gu.parse_gpx(path)
 
     new_tot_dist, new_tot_alt, new_dists, new_alts = compute(delta_dist, delta_alt)
     window_size = 10
@@ -128,11 +96,9 @@ if __name__ == '__main__':
     print(ends)
     print(climbs)
     # print(elem.get('lat'), elem.get('lon'), elem[0].text)
-    df = pd.DataFrame(
-        {'lat': lats, 'long': longs, 'alt': alts, 'dist': dists, 'delta_dists': delta_dist, 'delta_alt': delta_alt})
     df2 = pd.DataFrame({'dist': new_tot_dist, 'delta_dists': new_dists, 'delta_alt': new_alts, 'average_alt':average_alt_gain, 'average_climb': average_climb})
     #df2['pente'] = df2['delta_alt'] / df2['delta_dists'] * 100
-    #print(df2.tail(500))
+    print(df2.tail(500))
     fig = go.Figure()
 
     for c in climbs:
@@ -141,7 +107,19 @@ if __name__ == '__main__':
         dist = [d - new_tot_dist[s] for d in new_tot_dist[s:e]]
         alt = [a - new_tot_alt[s] for a in new_tot_alt[s:e]]
         fig.add_trace(go.Scatter(x=dist, y=alt, mode="lines"))
-    fig.show()
+
+    dists2, alts2, delta_dist2, delta_alt2 = gu.parse_gpx(path2)
+    dists3, alts3, delta_dist3, delta_alt3 = gu.parse_gpx(path3)
+    dists4, alts4, _, _ = gu.parse_gpx(path4)
+
+    fig.add_trace(go.Scatter(x=dists2, y=[a - alts2[0] for a in alts2], mode="lines", name="Bouchaux"))
+    fig.add_trace(go.Scatter(x=dists3, y=[a - alts3[0] for a in alts3], mode="lines", name="Huez"))
+    fig.add_trace(gu.create_trace_from_gpx(path4))
+    fig.add_trace(gu.create_trace_from_gpx('gpx_files/loze.gpx'))
+    fig.add_trace(gu.create_trace_from_gpx('gpx_files/Angliru.gpx'))
+    fig.add_trace(gu.create_trace_from_gpx('gpx_files/Herpie.gpx'))
+
+    fig.write_html('bouchaux.html')
 
 #fig = px.line(x=d1, y=alt1)
 #fig.add_trace()
